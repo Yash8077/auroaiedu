@@ -15,6 +15,10 @@ interface ChatAreaProps {
 
 export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
   const [input, setInput] = useState("")
+  const [isConnected, setIsConnected] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [status, setStatus] = useState("Disconnected") // New state for status
   const socket = useRef<WebSocket | null>(null)
 
   const { activeChat, chats, addMessage, isTyping, setIsTyping } = useStore()
@@ -26,16 +30,40 @@ export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
   const activeIcon = activeChat ? chats.find((chat) => chat.id === activeChat)?.icon || "📚" : "📚"
   const activeSubject = activeChat ? chats.find((chat) => chat.id === activeChat)?.subject || "general" : "general"
 
+  // Setup WebSocket connection
   useEffect(() => {
-    if (socket.current) socket.current.close() 
-  
+    if (socket.current) socket.current.close()
+
+    setIsConnecting(true)
+    setConnectionError(null)
+    setStatus("Connecting...") // Set status when connecting
+
     const ws = new WebSocket("wss://auroaiedu.onrender.com")
     socket.current = ws
-  
-    ws.onopen = () => console.log("✅ WebSocket connected")
-    ws.onclose = () => console.log("❌ WebSocket disconnected")
-    ws.onerror = (e) => console.warn("⚠️ WebSocket connection error", e)
-  
+
+    ws.onopen = () => {
+      setIsConnecting(false)
+      setIsConnected(true)
+      setStatus("Connected") // Set status when connected
+      setConnectionError("")
+      console.log("✅ WebSocket connected")
+    }
+
+    ws.onclose = () => {
+      setIsConnecting(false)
+      setIsConnected(false)
+      setStatus("Disconnected") // Set status when disconnected
+      console.log("❌ WebSocket disconnected")
+    }
+
+    ws.onerror = (e) => {
+      setIsConnecting(false)
+      setIsConnected(false)
+      setConnectionError("WebSocket connection error. Please try again.")
+      setStatus("Connection Error") // Set status on error
+      console.warn("⚠️ WebSocket connection error", e)
+    }
+
     ws.onmessage = (event) => {
       const { message } = JSON.parse(event.data)
       if (activeChat) {
@@ -43,12 +71,13 @@ export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
         setIsTyping(false)
       }
     }
-  
+
     return () => {
       ws.close()
     }
   }, [activeChat])
-  
+
+  // Scroll to the bottom of the chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
@@ -64,7 +93,7 @@ export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!input.trim() || !activeChat) return
+    if (!input.trim() || !activeChat || !isConnected) return
 
     addMessage(activeChat, input, "user")
     setInput("")
@@ -78,25 +107,54 @@ export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
     socket.current?.send(JSON.stringify(payload))
   }
 
+  const handleReconnect = () => {
+    setConnectionError(null)
+    setIsConnecting(true)
+    setStatus("Reconnecting...") // Set status when reconnecting
+    const ws = new WebSocket("wss://auroaiedu.onrender.com")
+    socket.current = ws
+    ws.onopen = () => {
+      setIsConnecting(false)
+      setIsConnected(true)
+      setStatus("Connected") // Set status when reconnected
+      setConnectionError("")
+      console.log("✅ WebSocket reconnected")
+    }
+    ws.onerror = () => {
+      setIsConnecting(false)
+      setIsConnected(false)
+      setStatus("Reconnection Failed") // Set status if reconnection fails
+    }
+  }
   return (
     <div className="flex flex-col h-full">
-{/* Chat header */}
-<div className="flex items-center p-4 border-b">
-  {!isDesktop && (
-    <Button variant="ghost" size="icon" onClick={onMenuClick} className="mr-2">
-      <Menu className="h-5 w-5" />
-    </Button>
-  )}
-  <div className="flex items-center">
-    <span className="text-2xl mr-2">{activeIcon}</span>
-    <div>
-      <h2 className="text-xl font-semibold">{activeTitle}</h2>
-      <p className="text-xs text-muted-foreground">
-        {SUBJECTS.find((s) => s.value === activeSubject)?.label || "General"}
-      </p>
-    </div>
-  </div>
-</div>
+      {/* Chat header */}
+      <div className="flex items-center p-4 border-b">
+        {!isDesktop && (
+          <Button variant="ghost" size="icon" onClick={onMenuClick} className="mr-2">
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <div className="flex items-center">
+          <span className="text-2xl mr-2">{activeIcon}</span>
+          <div>
+            <h2 className="text-xl font-semibold">{activeTitle}</h2>
+            <p className="text-xs text-muted-foreground">
+              {SUBJECTS.find((s) => s.value === activeSubject)?.label || "General"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* WebSocket Connection Status */}
+      <div className="text-center text-xs p-2">
+        {connectionError && <span className="text-red-500">{connectionError}</span>}
+        {isConnecting && <span className="text-yellow-500">{status}</span>}
+        {!isConnected && !isConnecting && !connectionError && (
+          <span className="text-gray-500">{status}</span>
+        )}
+        {isConnected && <span className="text-green-500">{status}</span>}
+      </div>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
@@ -128,11 +186,17 @@ export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
             className="flex-1"
+            disabled={!isConnected || isTyping}
           />
-          <Button type="submit" disabled={!input.trim() || isTyping}>
+          <Button type="submit" disabled={!input.trim() || isTyping || !isConnected}>
             {isTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>
+        {!isConnected && !isConnecting && !connectionError && (
+          <Button onClick={handleReconnect} variant="outline" className="mt-2">
+            Reconnect WebSocket
+          </Button>
+        )}
       </div>
     </div>
   )
