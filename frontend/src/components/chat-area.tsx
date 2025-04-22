@@ -29,7 +29,7 @@ export default function ChatArea({ onMenuClick, isDesktop }: ChatAreaProps) {
   useEffect(() => {
     if (socket.current) socket.current.close() 
   
-    const ws = new WebSocket("ws://auroaiedu.onrender.com:8081")
+    const ws = new WebSocket("wss://auroaiedu.onrender.com")
     socket.current = ws
   
     ws.onopen = () => console.log("✅ WebSocket connected")
