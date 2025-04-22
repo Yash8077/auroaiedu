@@ -48,7 +48,7 @@ interface ChatState {
 
 export const useStore = create<ChatState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       chats: [],
       activeChat: null,
       isTyping: false,
@@ -124,11 +124,11 @@ export const useStore = create<ChatState>()(
 
           // Convert string dates back to Date objects
           if (state.chats) {
-            state.chats = state.chats.map((chat: any) => ({
+            state.chats = state.chats.map((chat: Chat) => ({
               ...chat,
               createdAt: new Date(chat.createdAt),
               updatedAt: new Date(chat.updatedAt),
-              messages: chat.messages.map((msg: any) => ({
+              messages: chat.messages.map((msg: Message) => ({
                 ...msg,
                 createdAt: new Date(msg.createdAt),
               })),

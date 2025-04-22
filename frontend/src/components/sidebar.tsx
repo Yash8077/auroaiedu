@@ -5,8 +5,7 @@ import { useTheme } from "next-themes"
 import { Moon, Sun } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Search, Plus, X } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import ChatList from "./chat-list"
 
 interface SidebarProps {
@@ -15,7 +14,6 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onClose, onNewChat }: SidebarProps) {
-  const [searchQuery, setSearchQuery] = useState("")
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
